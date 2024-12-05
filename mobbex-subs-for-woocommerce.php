@@ -2,29 +2,23 @@
 /**
  * Plugin Name: Mobbex Subscriptions for WooCommerce
  * Description: Plugin that integrates Mobbex Subscriptions in WooCommerce.
- * Version: 3.1.1
+ * Version: 3.1.3
  * WC tested up to: 4.2.2
  * Author: mobbex.com
  * Author URI: https://mobbex.com/
  * Copyright: 2021 mobbex.com
  */
 
-// Sdk classes
-require_once WP_PLUGIN_DIR . '/woocommerce-mobbex/vendor/autoload.php';
-
-// Mobbex Subscriptions classes
-require_once 'utils/definitions.php';
-require_once 'Model/model.php';
-require_once 'Model/class-subscription.php';
-require_once 'Model/class-subscriber.php';
-require_once 'Helper/Order.php';
+require_once 'includes/utils.php';
+require_once 'includes/logger.php';
+require_once !class_exists('Mobbex\Model') ? 'includes/lib/class-api.php' : WP_PLUGIN_DIR . '/woocommerce-mobbex/includes/class-api.php';
+require_once !class_exists('Mobbex\Model') ? 'includes/lib/model.php' : WP_PLUGIN_DIR . '/woocommerce-mobbex/includes/model.php';
+require_once 'includes/class-subscription.php';
+require_once 'includes/class-subscriber.php';
 
 class Mbbx_Subs_Gateway
 {
-    public static $version = '3.1.1';
-
-    /** @var \Mobbex\WP\Checkout\Model\Logger */
-    public static $logger;
+    public static $version = '3.1.3';
 
     /**
      * @var Mbbxs_Helper
@@ -54,7 +48,6 @@ class Mbbx_Subs_Gateway
 
     public function init()
     {
-        
         try {
             Mbbx_Subs_Gateway::check_dependencies();
             Mbbx_Subs_Gateway::load_textdomain();
@@ -67,16 +60,15 @@ class Mbbx_Subs_Gateway
         } catch (Exception $e) {
             Mbbx_Subs_Gateway::$errors[] = $e->getMessage();
         }
-        
+
         if (count(Mbbx_Subs_Gateway::$errors)) {
             foreach (Mbbx_Subs_Gateway::$errors as $error) {
                 self::$helper::notice('error', $error);
             }
-            
+
             return;
         }
-        
-        self::$logger = new \Mobbex\WP\Checkout\Model\Logger();
+
         // Always
         Mbbx_Subs_Gateway::load_gateway();
         Mbbx_Subs_Gateway::add_gateway();
@@ -86,7 +78,7 @@ class Mbbx_Subs_Gateway
         add_filter('plugin_row_meta', [$this, 'plugin_row_meta'], 10, 2);
 
         //Product Settings
-        require_once plugin_dir_path(__FILE__) . 'admin/product-settings.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/admin/product-settings.php';
         
         Mbbx_Subs_Gateway::load_product_settings();
 
@@ -115,11 +107,7 @@ class Mbbx_Subs_Gateway
         }
 
         if (!function_exists('WC')) {
-            Mbbx_Subs_Gateway::$errors[] = __('Mobbex Subscription requires WooCommerce to be activated', 'mobbex-subs-for-woocommerce');
-        }
-
-        if(!class_exists('MobbexGateway')) {
-            Mbbx_Subs_Gateway::$errors[] = __('Mobbex Subscription requires Mobbex for WooCommerce to be activated', 'mobbex-subs-for-woocommerce');
+            Mbbx_Subs_Gateway::$errors[] = __('Mobbex requires WooCommerce to be activated', 'mobbex-subs-for-woocommerce');
         }
 
         if (!is_ssl()) {
@@ -127,18 +115,18 @@ class Mbbx_Subs_Gateway
         }
 
         if (version_compare(WC_VERSION, '2.6', '<')) {
-            Mbbx_Subs_Gateway::$errors[] = __('Mobbex Subscription requires WooCommerce version 2.6 or greater', 'mobbex-subs-for-woocommerce');
+            Mbbx_Subs_Gateway::$errors[] = __('Mobbex requires WooCommerce version 2.6 or greater', 'mobbex-subs-for-woocommerce');
         }
 
         if (!function_exists('curl_init')) {
-            Mbbx_Subs_Gateway::$errors[] = __('Mobbex Subscription requires the cURL PHP extension to be installed on your server', 'mobbex-subs-for-woocommerce');
+            Mbbx_Subs_Gateway::$errors[] = __('Mobbex requires the cURL PHP extension to be installed on your server', 'mobbex-subs-for-woocommerce');
         }
 
         if (!function_exists('json_decode')) {
-            Mbbx_Subs_Gateway::$errors[] = __('Mobbex Subscription requires the JSON PHP extension to be installed on your server', 'mobbex-subs-for-woocommerce');
+            Mbbx_Subs_Gateway::$errors[] = __('Mobbex requires the JSON PHP extension to be installed on your server', 'mobbex-subs-for-woocommerce');
         }
 
-        $openssl_warning = __('Mobbex Subscription requires OpenSSL >= 1.0.1 to be installed on your server', 'mobbex-subs-for-woocommerce');
+        $openssl_warning = __('Mobbex requires OpenSSL >= 1.0.1 to be installed on your server', 'mobbex-subs-for-woocommerce');
         if (!defined('OPENSSL_VERSION_TEXT')) {
             Mbbx_Subs_Gateway::$errors[] = $openssl_warning;
         }
@@ -160,13 +148,14 @@ class Mbbx_Subs_Gateway
 
     private static function load_helper()
     {
-        require_once plugin_dir_path(__FILE__) . 'Model/Helper.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/helper.php';
         self::$helper = new Mbbxs_Helper;
     }
 
     private static function load_update_checker()
     {
-        $myUpdateChecker = \Puc_v4_Factory::buildUpdateChecker(
+        require 'plugin-update-checker/plugin-update-checker.php';
+        $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
             'https://github.com/mobbexco/woocommerce-subscriptions/',
             __FILE__,
             'mobbex-subs-plugin-update-checker'
@@ -179,7 +168,7 @@ class Mbbx_Subs_Gateway
      */
     private static function load_subscription_product()
     {
-        require_once plugin_dir_path(__FILE__) . 'Model/subscription-product.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/subscription-product.php';
     }
 
     /**
@@ -187,13 +176,13 @@ class Mbbx_Subs_Gateway
      */
     private static function load_cart()
     {
-        require_once plugin_dir_path(__FILE__) . 'Model/Cart.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/cart.php';
         Mbbxs_Cart::init();
     }
 
     private static function load_gateway()
     {
-        require_once plugin_dir_path(__FILE__) . 'gateway.php';
+        require_once plugin_dir_path(__FILE__) . 'includes/gateway.php';
     }
 
     private static function add_gateway()
@@ -217,8 +206,8 @@ class Mbbx_Subs_Gateway
      */
     private static function load_order_settings()
     {
-        require_once plugin_dir_path(__FILE__) . 'admin/order-settings.php';
-        Mbbxs_Subs_Order_Settings::init();
+        require_once plugin_dir_path(__FILE__) . 'includes/admin/order-settings.php';
+        Mbbx_Subs_Order_Settings::init();
     }
 
     public function add_action_links($links)
@@ -305,21 +294,13 @@ class Mbbx_Subs_Gateway
 
 function install_mobbex_subs_tables()
 {
-        //Load Mobbex models in sdk
-        \Mobbex\Platform::loadModels(
-            new \Mobbex\WP\Checkout\Model\Cache(),
-            new \Mobbex\WP\Checkout\Model\Db()
-        );
-
-        foreach (['subscription', 'subscriber', 'execution'] as  $tableName) {
-            // Create the table or alter table if it exists
-            $table = new \Mobbex\Model\Table($tableName);
-            // If table creation fails, return false
-            if (!$table->result)
-                return false;
-        }
-        
-        return true;
+    global $wpdb;
+    // Get install query from sql file
+    $querys = explode('/', str_replace('PREFIX_', $wpdb->prefix, file_get_contents(WP_PLUGIN_DIR . '/woocommerce-mobbex-subs/setup/install.sql'))); 
+    //Execute the querys
+    foreach ($querys as $query) {
+        $wpdb->get_results($query);
+    }
 }
 
 $mbbx_subs_gateway = new Mbbx_Subs_Gateway;
