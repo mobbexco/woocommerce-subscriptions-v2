@@ -35,8 +35,7 @@
         var options = [
             document.querySelector('.mbbxs_charge_interval_field'),
             document.querySelector('.mbbxs_free_trial_field'),
-            document.querySelector('.mbbxs_signup_fee_field'),
-            document.querySelector('.mbbxs_test_mode_field')
+            document.querySelector('.mbbxs_signup_fee_field')
         ];
 
         // Show all subscription options when subscription mode is checked

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VER="3.1.3"
+VER="3.1.1"
 
 # Copy files to temp dir
 if type robocopy > /dev/null; then
